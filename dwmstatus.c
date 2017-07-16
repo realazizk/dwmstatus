@@ -154,37 +154,34 @@ loadavg(void)
 static int
 get_vol(void)
 {
-        int vol;
-        snd_hctl_t *hctl;
-        snd_ctl_elem_id_t *id;
-        snd_ctl_elem_value_t *control;
+        long vol;
+        long max, min;
+        snd_mixer_t *handle;
+        snd_mixer_selem_id_t *sid;
+        const char *card = "default";
+        const char *selem_name = "Master";
 
-        // To find card and subdevice: /proc/asound/, aplay -L, amixer controls
-        snd_hctl_open(&hctl, "hw:0", 0);
-        snd_hctl_load(hctl);
+        snd_mixer_open(&handle, 0);
+        snd_mixer_attach(handle, card);
+        snd_mixer_selem_register(handle, NULL, NULL);
+        snd_mixer_load(handle);
 
-        snd_ctl_elem_id_alloca(&id);
-        snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
+        snd_mixer_selem_id_alloca(&sid);
+        snd_mixer_selem_id_set_index(sid, 0);
+        snd_mixer_selem_id_set_name(sid, selem_name);
+        snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
 
-        // amixer controls
-        snd_ctl_elem_id_set_name(id, "Master Playback Volume");
+        snd_mixer_selem_get_playback_volume(elem, 0, &vol);
+        snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
 
-        snd_hctl_elem_t *elem = snd_hctl_find_elem(hctl, id);
-
-        snd_ctl_elem_value_alloca(&control);
-        snd_ctl_elem_value_set_id(control, id);
-
-        snd_hctl_elem_read(elem, control);
-        vol = (int)snd_ctl_elem_value_get_integer(control,0);
-
-        snd_hctl_close(hctl);
-        return vol;
+        snd_mixer_close(handle);
+        return (int) ((float )vol / max  * 100);
 }
 
 int
 main(void)
 {
-	char *status;
+        char *status;
 	char *avgs;
 	char *tmbln;
         char *battery;
@@ -193,7 +190,6 @@ main(void)
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
 		return 1;
 	}
-
 	for (;;sleep(1)) {
 		avgs = loadavg();
 		tmbln = mktimes("%a %d %b %H:%M:%S %Z %Y", tztunisia);
